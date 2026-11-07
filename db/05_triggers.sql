@@ -3,6 +3,7 @@
 -- 02_triggers.sql : restricciones adicionales (RA) implementadas con triggers
 -- Ejecutar DESPUÉS de 01_ddl.sql (el cliente tiene que soportar DELIMITER)
 -- =====================================================
+SET NAMES utf8mb4;
 USE tp_bd_grupo2;
 
 -- =====================================================

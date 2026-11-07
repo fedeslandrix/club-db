@@ -9,6 +9,7 @@ DROP DATABASE IF EXISTS tp_bd_grupo2;
 CREATE DATABASE tp_bd_grupo2
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
+SET NAMES utf8mb4;
 USE tp_bd_grupo2;
 
 -- =====================================================
