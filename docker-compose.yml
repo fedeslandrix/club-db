@@ -1,0 +1,18 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql_club
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: doctorado
+      MYSQL_DATABASE: club
+    ports:
+      - "3306:3306"
+    volumes:
+      # Persistencia de los datos físicos
+      - mysql_volume_data:/var/lib/mysql
+      # Scripts de inicialización automática (DDL y DML)
+      - ./db:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  mysql_volume_data:

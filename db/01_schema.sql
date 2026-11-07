@@ -1,0 +1,10 @@
+-- 01_schema.sql
+USE club;
+
+CREATE TABLE IF NOT EXISTS socios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    apellido VARCHAR(100) NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    fecha_alta TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
