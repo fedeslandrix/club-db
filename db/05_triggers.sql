@@ -1,23 +1,26 @@
 -- =====================================================
 -- TP Base de Datos - GRUPO 2
--- 02_triggers.sql : restricciones adicionales (RA) implementadas con triggers
--- Ejecutar DESPUÉS de 01_ddl.sql (el cliente tiene que soportar DELIMITER)
+-- 05_triggers.sql : restricciones adicionales (RA) e invariantes con triggers
+-- Ejecutar DESPUÉS de 01_schema.sql (el cliente tiene que soportar DELIMITER)
 -- =====================================================
 SET NAMES utf8mb4;
 USE tp_bd_grupo2;
 
 -- =====================================================
--- TRIGGERS (restricciones adicionales)
+-- TRIGGERS (restricciones adicionales e invariantes)
 -- =====================================================
 DELIMITER $$
 
 -- -----------------------------------------------------
--- RA 1, 2 y 3: SOCIO TITULAR
+-- RA 1, 2 y 3: SOCIO TITULAR y SOCIO
 --   - NroOrden = 0
 --   - el socio debe estar marcado is_titular = TRUE
 --   - su categoría debe ser Mayores o Vitalicios
---   (ajustar los nombres si en la tabla categoria están escritos distinto)
+--   - al cambiar la categoría de un socio, todas sus inscripciones
+--     vigentes en SE INSCRIBE EN deben ser compatibles con la nueva
+--     categoría en AGRUPA
 -- -----------------------------------------------------
+DROP TRIGGER IF EXISTS trg_socio_titular_bi$$
 CREATE TRIGGER trg_socio_titular_bi
 BEFORE INSERT ON socio_titular
 FOR EACH ROW
@@ -46,11 +49,12 @@ BEGIN
     END IF;
 END$$
 
--- Que no se pueda cambiar is_titular / categoría de un socio que ya es titular
+DROP TRIGGER IF EXISTS trg_socio_bu$$
 CREATE TRIGGER trg_socio_bu
 BEFORE UPDATE ON socio
 FOR EACH ROW
 BEGIN
+    -- Coherencia si el socio es titular
     IF EXISTS (SELECT 1 FROM socio_titular
                 WHERE nro_base = OLD.nro_base AND nro_orden = OLD.nro_orden) THEN
         IF NEW.is_titular = FALSE THEN
@@ -62,11 +66,34 @@ BEGIN
                 SET MESSAGE_TEXT = 'RA: el socio titular debe ser de categoria Mayores o Vitalicios';
         END IF;
     END IF;
+
+    -- Si cambia la categoría, verificar que no queden inscripciones incompatibles en AGRUPA
+    IF NEW.tipo_categoria <> OLD.tipo_categoria THEN
+        IF EXISTS (
+            SELECT 1
+              FROM se_inscribe_en i
+             WHERE i.nro_base  = OLD.nro_base
+               AND i.nro_orden = OLD.nro_orden
+               AND NOT EXISTS (
+                   SELECT 1
+                     FROM agrupa a
+                    WHERE a.id_actividad   = i.id_actividad
+                      AND a.tipo_categoria = NEW.tipo_categoria
+               )
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'RA: no se puede cambiar la categoria del socio porque tiene inscripciones incompatibles en AGRUPA';
+        END IF;
+    END IF;
 END$$
 
 -- -----------------------------------------------------
 -- RA 4: la categoría del socio debe estar asociada a la actividad (AGRUPA)
+--   - valida en INSERT/UPDATE de SE INSCRIBE EN
+--   - impide eliminar en AGRUPA una categoría si hay socios de esa
+--     categoría actualmente inscriptos en la actividad
 -- -----------------------------------------------------
+DROP TRIGGER IF EXISTS trg_inscribe_bi$$
 CREATE TRIGGER trg_inscribe_bi
 BEFORE INSERT ON se_inscribe_en
 FOR EACH ROW
@@ -78,13 +105,14 @@ BEGIN
      WHERE nro_base = NEW.nro_base AND nro_orden = NEW.nro_orden;
 
     IF NOT EXISTS (SELECT 1 FROM agrupa
-                    WHERE id_actividad = NEW.id_actividad
+                    WHERE id_actividad   = NEW.id_actividad
                       AND tipo_categoria = v_cat) THEN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'RA: la categoria del socio no esta asociada a la actividad';
     END IF;
 END$$
 
+DROP TRIGGER IF EXISTS trg_inscribe_bu$$
 CREATE TRIGGER trg_inscribe_bu
 BEFORE UPDATE ON se_inscribe_en
 FOR EACH ROW
@@ -96,16 +124,37 @@ BEGIN
      WHERE nro_base = NEW.nro_base AND nro_orden = NEW.nro_orden;
 
     IF NOT EXISTS (SELECT 1 FROM agrupa
-                    WHERE id_actividad = NEW.id_actividad
+                    WHERE id_actividad   = NEW.id_actividad
                       AND tipo_categoria = v_cat) THEN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'RA: la categoria del socio no esta asociada a la actividad';
     END IF;
 END$$
 
+DROP TRIGGER IF EXISTS trg_agrupa_bd$$
+CREATE TRIGGER trg_agrupa_bd
+BEFORE DELETE ON agrupa
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1
+          FROM se_inscribe_en i
+          JOIN socio s
+            ON s.nro_base  = i.nro_base
+           AND s.nro_orden = i.nro_orden
+         WHERE i.id_actividad   = OLD.id_actividad
+           AND s.tipo_categoria = OLD.tipo_categoria
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'RA: no se puede quitar la categoria de la actividad porque existen socios de esa categoria inscriptos';
+    END IF;
+END$$
+
 -- -----------------------------------------------------
--- RA 6: disjunción ARANCELADA / NO ARANCELADA y coherencia con ACTIVIDAD.tipo
+-- RA 6 y Hipótesis 5: disjunción ARANCELADA / NO ARANCELADA,
+-- coherencia con ACTIVIDAD.tipo e inmutabilidad de frecuencia_pago
 -- -----------------------------------------------------
+DROP TRIGGER IF EXISTS trg_arancelada_bi$$
 CREATE TRIGGER trg_arancelada_bi
 BEFORE INSERT ON actividad_arancelada
 FOR EACH ROW
@@ -121,6 +170,19 @@ BEGIN
     END IF;
 END$$
 
+-- Hipótesis 5: una vez definida la frecuencia de pago de una actividad arancelada, queda fija
+DROP TRIGGER IF EXISTS trg_arancelada_bu$$
+CREATE TRIGGER trg_arancelada_bu
+BEFORE UPDATE ON actividad_arancelada
+FOR EACH ROW
+BEGIN
+    IF NEW.frecuencia_pago <> OLD.frecuencia_pago THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'RA: la frecuencia de pago de una actividad arancelada es inmutable';
+    END IF;
+END$$
+
+DROP TRIGGER IF EXISTS trg_no_arancelada_bi$$
 CREATE TRIGGER trg_no_arancelada_bi
 BEFORE INSERT ON actividad_no_arancelada
 FOR EACH ROW
@@ -137,6 +199,7 @@ BEGIN
 END$$
 
 -- No dejar cambiar ACTIVIDAD.tipo si ya existe en el subtipo contrario
+DROP TRIGGER IF EXISTS trg_actividad_bu$$
 CREATE TRIGGER trg_actividad_bu
 BEFORE UPDATE ON actividad
 FOR EACH ROW
@@ -156,6 +219,7 @@ END$$
 -- -----------------------------------------------------
 -- RA 7: vigencias de MONTO BASE sin solapamiento
 -- -----------------------------------------------------
+DROP TRIGGER IF EXISTS trg_monto_base_bi$$
 CREATE TRIGGER trg_monto_base_bi
 BEFORE INSERT ON monto_base
 FOR EACH ROW
@@ -168,80 +232,83 @@ BEGIN
     END IF;
 END$$
 
+DROP TRIGGER IF EXISTS trg_monto_base_bu$$
 CREATE TRIGGER trg_monto_base_bu
 BEFORE UPDATE ON monto_base
 FOR EACH ROW
 BEGIN
     IF EXISTS (SELECT 1 FROM monto_base
                 WHERE id_monto_base <> OLD.id_monto_base
-                  AND fecha_inicio <= NEW.fecha_fin
-                  AND fecha_fin    >= NEW.fecha_inicio) THEN
+                  AND fecha_inicio  <= NEW.fecha_fin
+                  AND fecha_fin     >= NEW.fecha_inicio) THEN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'RA: el periodo de vigencia se solapa con otro MONTO BASE';
     END IF;
 END$$
 
 -- -----------------------------------------------------
--- RA 7 y 9: CUOTA SOCIAL
---   - el monto base debe estar vigente en la fecha de vencimiento
---   - monto_a_pagar es derivado: valor del monto base ajustado por el
---     descuento de la categoría del titular. Se calcula siempre acá.
+-- RA 2 (Entrega 1), RA 7 y RA 9: CUOTA SOCIAL
+--   - INSERT: permite emitir cuotas de períodos anteriores (RA 2),
+--     impidiendo únicamente montos base futuros (fecha_inicio > fecha_vencimiento)
+--   - INSERT: calcula monto_a_pagar como la suma de los aportes de
+--     TODOS los integrantes del grupo familiar (s.nro_base = NEW.nro_base)
+--   - UPDATE: garantiza inmutabilidad de la cuota emitida; solo permite
+--     actualizar monto_abonado
 -- -----------------------------------------------------
+DROP TRIGGER IF EXISTS trg_cuota_bi$$
 CREATE TRIGGER trg_cuota_bi
 BEFORE INSERT ON cuota_social
 FOR EACH ROW
 BEGIN
-    DECLARE v_valor DECIMAL(12,2);
-    DECLARE v_desc  DECIMAL(6,2);
+    DECLARE v_total DECIMAL(12,2);
 
     IF NOT EXISTS (SELECT 1 FROM monto_base
                     WHERE id_monto_base = NEW.id_monto_base
-                      AND NEW.fecha_vencimiento BETWEEN fecha_inicio AND fecha_fin) THEN
+                      AND fecha_inicio  <= NEW.fecha_vencimiento) THEN
         SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'RA: el MONTO BASE no esta vigente en la fecha de vencimiento';
+            SET MESSAGE_TEXT = 'RA: el MONTO BASE no existe o su vigencia inicia despues de la fecha de vencimiento';
     END IF;
 
-    SELECT mb.valor, c.descuento
-      INTO v_valor, v_desc
-      FROM monto_base mb, socio s
+    SELECT ROUND(SUM(mb.valor * (1 - c.descuento / 100)), 2)
+      INTO v_total
+      FROM monto_base mb
+      JOIN socio s     ON s.nro_base = NEW.nro_base
       JOIN categoria c ON c.tipo_categoria = s.tipo_categoria
-     WHERE mb.id_monto_base = NEW.id_monto_base
-       AND s.nro_base  = NEW.nro_base
-       AND s.nro_orden = NEW.nro_orden;
+     WHERE mb.id_monto_base = NEW.id_monto_base;
 
-    SET NEW.monto_a_pagar = ROUND(v_valor * (1 - v_desc / 100), 2);
+    IF v_total IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'RA: el grupo familiar no tiene socios registrados para calcular la cuota';
+    END IF;
+
+    SET NEW.monto_a_pagar = v_total;
 END$$
 
+DROP TRIGGER IF EXISTS trg_cuota_bu$$
 CREATE TRIGGER trg_cuota_bu
 BEFORE UPDATE ON cuota_social
 FOR EACH ROW
 BEGIN
-    DECLARE v_valor DECIMAL(12,2);
-    DECLARE v_desc  DECIMAL(6,2);
-
-    IF NOT EXISTS (SELECT 1 FROM monto_base
-                    WHERE id_monto_base = NEW.id_monto_base
-                      AND NEW.fecha_vencimiento BETWEEN fecha_inicio AND fecha_fin) THEN
+    IF NEW.id_cuota <> OLD.id_cuota
+       OR NEW.fecha_vencimiento <> OLD.fecha_vencimiento
+       OR NEW.monto_a_pagar <> OLD.monto_a_pagar
+       OR NEW.nro_base <> OLD.nro_base
+       OR NEW.nro_orden <> OLD.nro_orden
+       OR NEW.id_monto_base <> OLD.id_monto_base THEN
         SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'RA: el MONTO BASE no esta vigente en la fecha de vencimiento';
+            SET MESSAGE_TEXT = 'RA: una cuota emitida es inmutable; solo se permite actualizar monto_abonado';
     END IF;
-
-    SELECT mb.valor, c.descuento
-      INTO v_valor, v_desc
-      FROM monto_base mb, socio s
-      JOIN categoria c ON c.tipo_categoria = s.tipo_categoria
-     WHERE mb.id_monto_base = NEW.id_monto_base
-       AND s.nro_base  = NEW.nro_base
-       AND s.nro_orden = NEW.nro_orden;
-
-    SET NEW.monto_a_pagar = ROUND(v_valor * (1 - v_desc / 100), 2);
 END$$
 
 -- -----------------------------------------------------
 -- RA 8: cronograma válido (TRABAJA EN)
---   - el profesional debe estar habilitado para la actividad
---   - el área debe permitir la actividad
+--   - el profesional debe estar habilitado para la actividad (PUEDE DICTAR)
+--   - el área debe permitir la actividad (PERMITE)
+--   - no puede haber dos actividades distintas en la misma
+--     (id_area, periodo, dias, horario), pero sí varios profesores
+--     dictando la misma actividad en la misma área
 -- -----------------------------------------------------
+DROP TRIGGER IF EXISTS trg_trabaja_en_bi$$
 CREATE TRIGGER trg_trabaja_en_bi
 BEFORE INSERT ON trabaja_en
 FOR EACH ROW
@@ -258,8 +325,18 @@ BEGIN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'RA: el area no permite desarrollar la actividad';
     END IF;
+    IF EXISTS (SELECT 1 FROM trabaja_en
+                WHERE id_area      = NEW.id_area
+                  AND periodo      = NEW.periodo
+                  AND dias         = NEW.dias
+                  AND horario      = NEW.horario
+                  AND id_actividad <> NEW.id_actividad) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'RA: el area ya tiene asignada otra actividad en ese periodo, dia y horario';
+    END IF;
 END$$
 
+DROP TRIGGER IF EXISTS trg_trabaja_en_bu$$
 CREATE TRIGGER trg_trabaja_en_bu
 BEFORE UPDATE ON trabaja_en
 FOR EACH ROW
@@ -275,6 +352,22 @@ BEGIN
                       AND id_actividad = NEW.id_actividad) THEN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'RA: el area no permite desarrollar la actividad';
+    END IF;
+    IF EXISTS (SELECT 1 FROM trabaja_en
+                WHERE id_area      = NEW.id_area
+                  AND periodo      = NEW.periodo
+                  AND dias         = NEW.dias
+                  AND horario      = NEW.horario
+                  AND id_actividad <> NEW.id_actividad
+                  AND NOT (
+                      id_profesional = OLD.id_profesional
+                      AND id_actividad = OLD.id_actividad
+                      AND id_area      = OLD.id_area
+                      AND dias         = OLD.dias
+                      AND horario      = OLD.horario
+                  )) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'RA: el area ya tiene asignada otra actividad en ese periodo, dia y horario';
     END IF;
 END$$
 

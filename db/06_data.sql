@@ -100,32 +100,39 @@ INSERT INTO monto_base (id_monto_base, valor, fecha_inicio, fecha_fin) VALUES
 
 -- -----------------------------------------------------
 -- CUOTA SOCIAL
--- monto_a_pagar = valor del monto base * (1 - descuento de la categoría del titular):
---   Mayores    -> 20000.00 (monto base 1) / 25000.00 (monto base 2)
---   Vitalicios -> 17500.00 (monto base 2)
+-- monto_a_pagar = suma de (valor del monto base * (1 - descuento/100))
+--                 para TODOS los socios del grupo familiar (trg_cuota_bi):
+--   Grupo 504 (2 Mayores 0% + 2 Infantiles 20%): 72000.00 (mb 1) / 90000.00 (mb 2)
+--   Grupo 505 (1 Vitalicio 30%):                 14000.00 (mb 1) / 17500.00 (mb 2)
+--   Grupo 506 (1 Mayor 0% + 1 Infantil 20%):     45000.00 (mb 2)
+--   Grupo 507 (1 Mayor 0%):                      25000.00 (mb 2)
+--   Grupo 508 (2 Vitalicios 30%):                35000.00 (mb 2)
 -- Se carga explícito para que el CHECK (monto_abonado <= monto_a_pagar) pase
 -- aunque MySQL lo evalúe antes que el trigger. El trigger lo vuelve a calcular
 -- y tiene que dar exactamente el mismo valor.
--- fecha_vencimiento tiene que caer dentro de la vigencia del monto base elegido.
+-- RA 2 (Entrega 1): se permite emitir con monto_base de un período anterior
+-- (fecha_inicio <= fecha_vencimiento), como el caso del grupo 505 con mb 1 y venc. 2026-07-15.
 -- Columnas: fecha_vencimiento, monto_abonado, monto_a_pagar, nro_base, nro_orden, id_monto_base
 -- -----------------------------------------------------
 INSERT INTO cuota_social
     (fecha_vencimiento, monto_abonado, monto_a_pagar, nro_base, nro_orden, id_monto_base)
 VALUES
     -- Primer semestre (monto base 1)
-    ('2026-06-10', 20000.00, 20000.00, 504, 0, 1),
-    -- Octubre 2026
-    ('2026-10-10', 25000.00, 25000.00, 504, 0, 2),
+    ('2026-06-10', 72000.00, 72000.00, 504, 0, 1),
+    -- Cuota retroactiva RA 2: período 1er semestre (mb 1) con vencimiento en julio
+    ('2026-07-15',     0.00, 14000.00, 505, 0, 1),   -- impaga (retroactiva RA 2)
+    -- Octubre 2026 (monto base 2)
+    ('2026-10-10', 90000.00, 90000.00, 504, 0, 2),
     ('2026-10-10', 17500.00, 17500.00, 505, 0, 2),
-    ('2026-10-10', 25000.00, 25000.00, 506, 0, 2),
+    ('2026-10-10', 45000.00, 45000.00, 506, 0, 2),
     ('2026-10-10',     0.00, 25000.00, 507, 0, 2),   -- impaga
-    ('2026-10-10', 17500.00, 17500.00, 508, 0, 2),
-    -- Noviembre 2026
-    ('2026-11-10',     0.00, 25000.00, 504, 0, 2),   -- impaga
+    ('2026-10-10', 35000.00, 35000.00, 508, 0, 2),
+    -- Noviembre 2026 (monto base 2)
+    ('2026-11-10',     0.00, 90000.00, 504, 0, 2),   -- impaga
     ('2026-11-10',     0.00, 17500.00, 505, 0, 2),   -- impaga
-    ('2026-11-10', 12500.00, 25000.00, 506, 0, 2),   -- pago parcial
+    ('2026-11-10', 12500.00, 45000.00, 506, 0, 2),   -- pago parcial
     ('2026-11-10',     0.00, 25000.00, 507, 0, 2),   -- impaga
-    ('2026-11-10', 17500.00, 17500.00, 508, 0, 2);
+    ('2026-11-10', 35000.00, 35000.00, 508, 0, 2);
 
 -- -----------------------------------------------------
 -- PROFESIONAL
@@ -278,7 +285,7 @@ INSERT INTO abona (id_actividad, nro_orden, nro_base, fecha) VALUES
 -- ATRIBUTOS DERIVADOS (RA 9)
 -- deuda_actividad (socio) = suma del costo de las actividades aranceladas
 --                           en las que está inscripto y todavía no pagó
--- deuda_total (grupo)     = deuda de las cuotas sociales + deuda_actividad de sus socios
+-- deuda_total (grupo)     = deuda exclusivamente de las cuotas sociales del grupo
 -- -----------------------------------------------------
 UPDATE socio s
 SET s.deuda_actividad = COALESCE((
@@ -295,39 +302,9 @@ SET s.deuda_actividad = COALESCE((
 WHERE s.nro_base > 0;
 
 UPDATE grupo_familiar g
-SET g.deuda_total =
-      COALESCE((SELECT SUM(c.monto_a_pagar - c.monto_abonado) FROM cuota_social c WHERE c.nro_base = g.nro_base), 0)
-    + COALESCE((SELECT SUM(s.deuda_actividad) FROM socio s WHERE s.nro_base = g.nro_base), 0)
+SET g.deuda_total = COALESCE((
+        SELECT SUM(c.monto_a_pagar - c.monto_abonado)
+        FROM cuota_social c
+        WHERE c.nro_base = g.nro_base
+    ), 0)
 WHERE g.nro_base > 0;
-
--- =====================================================
--- CONSULTAS PARA VERIFICAR QUE CARGÓ BIEN
--- =====================================================
--- SELECT * FROM grupo_familiar;
--- SELECT * FROM socio ORDER BY nro_base, nro_orden;
--- SELECT * FROM cuota_social;            -- monto_a_pagar lo calculó el trigger
--- SELECT * FROM v_cuota_deuda;
-
--- =====================================================
--- PRUEBAS DE LAS RA: cada una de estas sentencias tiene que FALLAR
--- (descomentar de a una y ejecutar)
--- =====================================================
--- RA 4: Tomás (Infantiles) no puede inscribirse en Yoga (solo Mayores y Vitalicios)
--- INSERT INTO se_inscribe_en VALUES (504, 2, 4, '2026-11-01');
-
--- RA 1: un socio Infantiles no puede ser titular
--- INSERT INTO socio VALUES (509, 0, 'Test', NULL, '2015-01-01', 0, TRUE, 'Infantiles');
--- (antes hay que crear el grupo: INSERT INTO grupo_familiar VALUES (509, '000', 'x', 0);)
--- INSERT INTO socio_titular VALUES (509, 0, '000');
-
--- RA 5: pagar una actividad en la que el socio no está inscripto
--- INSERT INTO abona VALUES (1, 0, 505, '2026-11-01');
-
--- RA 6: una actividad no puede ser arancelada y no arancelada a la vez
--- INSERT INTO actividad_no_arancelada VALUES (1);
-
--- RA 7: monto base con vigencia que se solapa con otra
--- INSERT INTO monto_base (valor, fecha_inicio, fecha_fin) VALUES (30000, '2026-12-01', '2027-05-31');
-
--- RA 8: Hernán (Tenis/Ajedrez) no puede dictar Natación
--- INSERT INTO trabaja_en VALUES (5, 1, 5, 'Viernes', '18:00-19:00', '2do semestre 2026');
