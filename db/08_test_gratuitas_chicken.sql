@@ -15,7 +15,6 @@ DELETE FROM se_inscribe_en WHERE nro_base = 950;
 DELETE FROM socio_titular  WHERE nro_base = 950;
 DELETE FROM socio          WHERE nro_base = 950;
 DELETE FROM grupo_familiar WHERE nro_base = 950;
-DELETE FROM categoria      WHERE tipo_categoria = 'Honorarios';
 -- (por si corriste la version anterior de este script, que agregaba estas filas)
 DELETE FROM agrupa WHERE (id_actividad, tipo_categoria) IN
     ((3, 'Mayores'), (3, 'Vitalicios'), (6, 'Infantiles'), (6, 'Mayores'));

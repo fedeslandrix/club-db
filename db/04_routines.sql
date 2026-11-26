@@ -31,9 +31,9 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: El socio no existe';
     END IF;
 
-    -- Evitar doble inscripción
-    IF EXISTS (SELECT 1 FROM se_inscribe_en WHERE nro_base = p_nro_base AND nro_orden = p_nro_orden AND id_actividad = p_id_actividad) THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: El socio ya se encuentra inscripto en esta actividad';
+    -- Evitar doble inscripción en la misma fecha
+    IF EXISTS (SELECT 1 FROM se_inscribe_en WHERE nro_base = p_nro_base AND nro_orden = p_nro_orden AND id_actividad = p_id_actividad AND fecha_inscripcion = CURDATE()) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: El socio ya se encuentra inscripto en esta actividad en la fecha de hoy';
     END IF;
 
     -- Obtener tipo y costo
@@ -169,6 +169,11 @@ BEGIN
 
     START TRANSACTION;
 
+    -- Validar tipo antes del INSERT (con ENUM un valor inválido lanza SQLSTATE 01000, no SQLEXCEPTION)
+    IF p_tipo IS NULL OR p_tipo NOT IN ('ARANCELADA', 'NO_ARANCELADA') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Tipo de actividad inválido (use ARANCELADA o NO_ARANCELADA)';
+    END IF;
+
     -- 1. Insertar en tabla padre
     INSERT INTO actividad (descripcion, tipo)
     VALUES (p_descripcion, p_tipo);
@@ -179,11 +184,9 @@ BEGIN
     IF p_tipo = 'ARANCELADA' THEN
         INSERT INTO actividad_arancelada (id_actividad, costo, frecuencia_pago)
         VALUES (v_id_actividad, p_costo, p_frecuencia_pago);
-    ELSEIF p_tipo = 'NO_ARANCELADA' THEN
+    ELSE
         INSERT INTO actividad_no_arancelada (id_actividad)
         VALUES (v_id_actividad);
-    ELSE
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Tipo de actividad inválido (use ARANCELADA o NO_ARANCELADA)';
     END IF;
 
     -- 3. Vincular categoría inicial en agrupa

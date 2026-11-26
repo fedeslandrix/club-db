@@ -30,22 +30,22 @@ CREATE TABLE grupo_familiar (
 -- CATEGORIA
 -- RA 10: descuento puede ser negativo (= incremento). Solo se exige que sea < 100.
 CREATE TABLE categoria (
-    tipo_categoria  VARCHAR(30)    NOT NULL,
-    descuento       DECIMAL(6,2)   NOT NULL DEFAULT 0,
+    tipo_categoria  ENUM('Infantiles', 'Mayores', 'Vitalicios') NOT NULL,
+    descuento       DECIMAL(6,2)                                NOT NULL DEFAULT 0,
     CONSTRAINT pk_categoria PRIMARY KEY (tipo_categoria),
     CONSTRAINT ck_categoria_descuento CHECK (descuento < 100)
 ) ENGINE=InnoDB;
 
 -- SOCIO
 CREATE TABLE socio (
-    nro_base            INT            NOT NULL,
-    nro_orden           INT            NOT NULL,
-    nombre              VARCHAR(100)   NOT NULL,
-    correo_electronico  VARCHAR(120)   NULL,
-    fecha_nacimiento    DATE           NOT NULL,
-    deuda_actividad     DECIMAL(12,2)  NOT NULL DEFAULT 0,
-    is_titular          BOOLEAN        NOT NULL DEFAULT FALSE,
-    tipo_categoria      VARCHAR(30)    NOT NULL,
+    nro_base            INT                                         NOT NULL,
+    nro_orden           INT                                         NOT NULL,
+    nombre              VARCHAR(100)                                NOT NULL,
+    correo_electronico  VARCHAR(120)                                NULL,
+    fecha_nacimiento    DATE                                        NOT NULL,
+    deuda_actividad     DECIMAL(12,2)                               NOT NULL DEFAULT 0,
+    is_titular          BOOLEAN                                     NOT NULL DEFAULT FALSE,
+    tipo_categoria      ENUM('Infantiles', 'Mayores', 'Vitalicios') NOT NULL,
     CONSTRAINT pk_socio PRIMARY KEY (nro_base, nro_orden),
     CONSTRAINT fk_socio_grupo FOREIGN KEY (nro_base)
         REFERENCES grupo_familiar (nro_base)
@@ -122,7 +122,7 @@ CREATE TABLE area (
     id_area                 INT            NOT NULL AUTO_INCREMENT,
     capacidad               INT            NOT NULL,
     ubicacion_predio        VARCHAR(100)   NOT NULL,
-    estado_mantenimiento    VARCHAR(50)    NOT NULL,
+    estado_mantenimiento    ENUM('Bueno', 'Regular', 'Malo', 'En reparación', 'Fuera de servicio') NOT NULL,
     CONSTRAINT pk_area PRIMARY KEY (id_area),
     CONSTRAINT ck_area_capacidad CHECK (capacidad >= 0)
 ) ENGINE=InnoDB;
@@ -131,18 +131,17 @@ CREATE TABLE area (
 -- RA 6: tipo solo puede valer ARANCELADA o NO_ARANCELADA (y tiene que coincidir
 --       con la tabla de subtipo donde está, lo controlan los triggers)
 CREATE TABLE actividad (
-    id_actividad    INT            NOT NULL AUTO_INCREMENT,
-    descripcion     VARCHAR(200)   NULL,
-    tipo            VARCHAR(20)    NOT NULL,
-    CONSTRAINT pk_actividad PRIMARY KEY (id_actividad),
-    CONSTRAINT ck_actividad_tipo CHECK (tipo IN ('ARANCELADA', 'NO_ARANCELADA'))
+    id_actividad    INT                                 NOT NULL AUTO_INCREMENT,
+    descripcion     VARCHAR(200)                        NULL,
+    tipo            ENUM('ARANCELADA', 'NO_ARANCELADA') NOT NULL,
+    CONSTRAINT pk_actividad PRIMARY KEY (id_actividad)
 ) ENGINE=InnoDB;
 
 -- ACTIVIDAD ARANCELADA
 CREATE TABLE actividad_arancelada (
-    id_actividad        INT            NOT NULL,
-    costo               DECIMAL(12,2)  NOT NULL,
-    frecuencia_pago     VARCHAR(30)    NOT NULL,
+    id_actividad        INT           NOT NULL,
+    costo               DECIMAL(12,2) NOT NULL,
+    frecuencia_pago     ENUM('Mensual', 'Bimestral', 'Trimestral', 'Cuatrimestral', 'Semestral', 'Anual') NOT NULL,
     CONSTRAINT pk_actividad_arancelada PRIMARY KEY (id_actividad),
     CONSTRAINT fk_arancelada_actividad FOREIGN KEY (id_actividad)
         REFERENCES actividad (id_actividad)
@@ -161,12 +160,12 @@ CREATE TABLE actividad_no_arancelada (
 
 -- TRABAJA EN (cronograma)
 CREATE TABLE trabaja_en (
-    id_profesional  INT            NOT NULL,
-    id_actividad    INT            NOT NULL,
-    id_area         INT            NOT NULL,
-    dias            VARCHAR(50)    NOT NULL,
-    horario         VARCHAR(30)    NOT NULL,
-    periodo         VARCHAR(50)    NOT NULL,
+    id_profesional  INT                                                                         NOT NULL,
+    id_actividad    INT                                                                         NOT NULL,
+    id_area         INT                                                                         NOT NULL,
+    dias            ENUM('Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo') NOT NULL,
+    horario         VARCHAR(30)                                                                 NOT NULL,
+    periodo         VARCHAR(50)                                                                 NOT NULL,
     CONSTRAINT pk_trabaja_en PRIMARY KEY (id_profesional, id_actividad, id_area, dias, horario, periodo),
     CONSTRAINT fk_trabaja_profesional FOREIGN KEY (id_profesional)
         REFERENCES profesional (id_profesional)
@@ -185,7 +184,7 @@ CREATE TABLE se_inscribe_en (
     nro_orden           INT   NOT NULL,
     id_actividad        INT   NOT NULL,
     fecha_inscripcion   DATE  NOT NULL,
-    CONSTRAINT pk_se_inscribe_en PRIMARY KEY (nro_base, nro_orden, id_actividad),
+    CONSTRAINT pk_se_inscribe_en PRIMARY KEY (nro_base, nro_orden, id_actividad, fecha_inscripcion),
     CONSTRAINT fk_inscribe_socio FOREIGN KEY (nro_base, nro_orden)
         REFERENCES socio (nro_base, nro_orden)
         ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -213,8 +212,8 @@ CREATE TABLE abona (
 
 -- AGRUPA
 CREATE TABLE agrupa (
-    id_actividad    INT          NOT NULL,
-    tipo_categoria  VARCHAR(30)  NOT NULL,
+    id_actividad    INT                                         NOT NULL,
+    tipo_categoria  ENUM('Infantiles', 'Mayores', 'Vitalicios') NOT NULL,
     CONSTRAINT pk_agrupa PRIMARY KEY (id_actividad, tipo_categoria),
     CONSTRAINT fk_agrupa_actividad FOREIGN KEY (id_actividad)
         REFERENCES actividad (id_actividad)
