@@ -2,17 +2,16 @@ import { json, run } from '../../../lib/db';
 export const dynamic = 'force-dynamic';
 
 // Consigna 1: titulares con cuotas del año en curso adeudadas
-const Q = `
-SELECT s.nro_base, s.nro_orden, s.nombre, s.correo_electronico,
-       gf.domicilio, gf.num_telefono,
-       SUM(c.monto_a_pagar - c.monto_abonado) AS total_adeudado,
-       (SELECT COUNT(*) FROM socio m WHERE m.nro_base = s.nro_base) AS cant_integrantes
-FROM cuota_social c
-JOIN socio s ON s.nro_base = c.nro_base AND s.nro_orden = c.nro_orden
-JOIN grupo_familiar gf ON gf.nro_base = s.nro_base
-WHERE YEAR(c.fecha_vencimiento) = YEAR(CURDATE())
-  AND c.monto_a_pagar > c.monto_abonado
-GROUP BY s.nro_base, s.nro_orden, s.nombre, s.correo_electronico, gf.domicilio, gf.num_telefono
-ORDER BY total_adeudado DESC`;
+const Q = `SELECT v2.nro_base, v2.titular, v2.fecha_nacimiento, v2.correo_titular,
+       v2.celular_titular, v2.domicilio, v2.num_telefono,
+       v2.cantidad_integrantes,
+       SUM(v1.deuda) AS total_adeudado
+FROM v_cuota_deuda_extended v1,
+     v_estado_cuenta_grupo_familiar v2
+WHERE v1.nro_base = v2.nro_base
+  AND v1.deuda > 0
+  AND YEAR(v1.fecha_vencimiento) = YEAR(CURDATE())
+GROUP BY v2.nro_base, v2.titular, v2.fecha_nacimiento, v2.correo_titular,
+         v2.celular_titular, v2.domicilio, v2.num_telefono, v2.cantidad_integrantes`;
 
 export const GET = () => json(() => run(Q));

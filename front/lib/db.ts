@@ -21,4 +21,4 @@ export async function json(fn: () => Promise<unknown>) {
   }
 }
 
-export const run = async (sql: string) => (await pool.query(sql))[0];
+export const run = async (sql: string, params?: unknown[]) => (await pool.query(sql, params))[0];

@@ -1,11 +1,28 @@
 import { json, run } from '../../../lib/db';
 export const dynamic = 'force-dynamic';
-export const GET = () =>
-  json(() =>
-    run(`SELECT s.nro_base, s.nro_orden, s.nombre, s.tipo_categoria,
-                a.id_actividad, a.descripcion AS actividad, a.tipo, i.fecha_inscripcion
-         FROM se_inscribe_en i
-         JOIN socio s USING (nro_base, nro_orden)
-         JOIN actividad a USING (id_actividad)
-         ORDER BY s.nro_base, s.nro_orden, a.id_actividad`));
+
+export const GET = (req: Request) =>
+  json(() => {
+    const raw = new URL(req.url).searchParams.get('id_actividad');
+    if (raw !== null && raw !== '') {
+      const idActividad = Number(raw);
+      if (!Number.isInteger(idActividad) || idActividad <= 0) {
+        throw new Error('id_actividad inválido');
+      }
+      return run(
+        `SELECT nro_base, nro_orden, nombre, tipo_categoria,
+                id_actividad, actividad, fecha_inscripcion
+         FROM v_nomina_inscriptos_profesor
+         WHERE id_actividad = ?
+         ORDER BY nro_base, nro_orden`,
+        [idActividad],
+      );
+    }
+    return run(
+      `SELECT nro_base, nro_orden, nombre, tipo_categoria,
+              id_actividad, actividad, fecha_inscripcion
+       FROM v_nomina_inscriptos_profesor
+       ORDER BY nro_base, nro_orden, id_actividad`,
+    );
+  });
 
