@@ -20,8 +20,6 @@ SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE abona;
 TRUNCATE TABLE se_inscribe_en;
 TRUNCATE TABLE trabaja_en;
-TRUNCATE TABLE permite;
-TRUNCATE TABLE puede_dictar;
 TRUNCATE TABLE agrupa;
 TRUNCATE TABLE actividad_no_arancelada;
 TRUNCATE TABLE actividad_arancelada;
@@ -192,26 +190,6 @@ INSERT INTO agrupa (id_actividad, tipo_categoria) VALUES
     (5, 'Infantiles'), (5, 'Mayores'), (5, 'Vitalicios'),   -- Ajedrez
     (6, 'Vitalicios'),                                      -- Gimnasia suave
     (7, 'Infantiles');                                      -- Fútbol infantil
-
--- -----------------------------------------------------
--- PUEDE DICTAR  (profesional habilitado para la actividad)
--- -----------------------------------------------------
-INSERT INTO puede_dictar (id_profesional, id_actividad) VALUES
-    (1, 1), (1, 6),            -- Martín: Natación, Gimnasia suave
-    (2, 1), (2, 4),            -- Valeria: Natación, Yoga
-    (3, 2), (3, 7),            -- Diego: Tenis, Fútbol infantil
-    (4, 2),                    -- Julieta: Tenis
-    (5, 2), (5, 5),            -- Hernán: Tenis, Ajedrez
-    (6, 2), (6, 3);            -- Camila: Tenis, Eventos recreativos
-
--- -----------------------------------------------------
--- PERMITE  (actividades que se pueden desarrollar en cada área)
--- -----------------------------------------------------
-INSERT INTO permite (id_area, id_actividad) VALUES
-    (1, 2), (2, 2), (3, 2), (4, 2),     -- canchas de tenis
-    (5, 1),                             -- pileta
-    (6, 3), (6, 4), (6, 5), (6, 6),     -- salón: eventos, yoga, ajedrez, gimnasia suave
-    (7, 7);                             -- cancha de fútbol 5
 
 -- -----------------------------------------------------
 -- TRABAJA EN  (cronograma: un día por fila)

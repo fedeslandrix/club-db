@@ -7,6 +7,7 @@ DELIMITER //
 -- SP 1: sp_inscribir (existente - ajustado)
 -- Bloquea socio, valida, inscribe y actualiza socio.deuda_actividad.
 -- =====================================================
+DROP PROCEDURE IF EXISTS sp_inscribir //
 CREATE PROCEDURE sp_inscribir(
     IN p_nro_base INT, 
     IN p_nro_orden INT, 
@@ -69,6 +70,7 @@ END //
 -- SP 2: sp_alta_grupo_familiar (nuevo)
 -- Participación total: GrupoFamiliar <-> Socio <-> SocioTitular
 -- =====================================================
+DROP PROCEDURE IF EXISTS sp_alta_grupo_familiar //
 CREATE PROCEDURE sp_alta_grupo_familiar(
     IN p_nro_base INT,
     IN p_num_telefono VARCHAR(20),
@@ -108,6 +110,7 @@ END //
 -- SP 3: sp_alta_integrante_familiar (nuevo)
 -- Calcula atómicamente el nro_orden sin condiciones de carrera.
 -- =====================================================
+DROP PROCEDURE IF EXISTS sp_alta_integrante_familiar //
 CREATE PROCEDURE sp_alta_integrante_familiar(
     IN p_nro_base INT,
     IN p_nombre VARCHAR(100),
@@ -147,6 +150,7 @@ END //
 -- SP 4: sp_alta_actividad (nuevo)
 -- Especialización total y participación total en AGRUPA.
 -- =====================================================
+DROP PROCEDURE IF EXISTS sp_alta_actividad //
 CREATE PROCEDURE sp_alta_actividad(
     IN p_descripcion VARCHAR(200),
     IN p_tipo VARCHAR(20),
@@ -194,6 +198,7 @@ END //
 -- SP 5: sp_liquidar_cuotas_mes (nuevo)
 -- Emisión masiva de cuotas y actualización de grupo_familiar.deuda_total.
 -- =====================================================
+DROP PROCEDURE IF EXISTS sp_liquidar_cuotas_mes //
 CREATE PROCEDURE sp_liquidar_cuotas_mes(
     IN p_fecha_periodo DATE,
     IN p_fecha_vencimiento DATE
@@ -201,6 +206,7 @@ CREATE PROCEDURE sp_liquidar_cuotas_mes(
 BEGIN
     DECLARE v_id_monto INT;
     DECLARE v_fecha_inicio DATE;
+    DECLARE v_ultimo_id INT DEFAULT 0;
 
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
@@ -225,6 +231,10 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: La fecha de vencimiento no puede ser anterior al inicio del monto base';
     END IF;
 
+    -- Registrar el último id_cuota previo para identificar solo las cuotas nuevas
+    SELECT COALESCE(MAX(id_cuota), 0) INTO v_ultimo_id
+    FROM cuota_social;
+
     -- 1. Insertar cuota para cada titular activo que no la tenga ya
     INSERT INTO cuota_social (fecha_vencimiento, monto_abonado, monto_a_pagar, nro_base, nro_orden, id_monto_base)
     SELECT p_fecha_vencimiento, 0.00, 0.00, st.nro_base, st.nro_orden, v_id_monto
@@ -237,15 +247,14 @@ BEGIN
           AND cs.id_monto_base = v_id_monto
     );
 
-    -- 2. Actualizar deuda_total del grupo sumando las cuotas generadas
+    -- 2. Actualizar deuda_total solo de los grupos con cuotas recién generadas
     UPDATE grupo_familiar gf
-    SET gf.deuda_total = gf.deuda_total + COALESCE((
-        SELECT cs.monto_a_pagar
-        FROM cuota_social cs
-        WHERE cs.nro_base = gf.nro_base
-          AND cs.fecha_vencimiento = p_fecha_vencimiento
-          AND cs.id_monto_base = v_id_monto
-    ), 0.00);
+    JOIN cuota_social cs
+      ON cs.nro_base = gf.nro_base
+    SET gf.deuda_total = gf.deuda_total + cs.monto_a_pagar
+    WHERE cs.id_cuota > v_ultimo_id
+      AND cs.fecha_vencimiento = p_fecha_vencimiento
+      AND cs.id_monto_base = v_id_monto;
 
     COMMIT;
 END //
@@ -255,6 +264,7 @@ END //
 -- SP 6: sp_registrar_pago_cuota (nuevo)
 -- Bloquea la cuota, valida saldo y descuenta de grupo_familiar.deuda_total.
 -- =====================================================
+DROP PROCEDURE IF EXISTS sp_registrar_pago_cuota //
 CREATE PROCEDURE sp_registrar_pago_cuota(
     IN p_id_cuota INT,
     IN p_monto DECIMAL(12,2)
@@ -309,6 +319,7 @@ END //
 -- SP 7: sp_registrar_pago_arancel (nuevo)
 -- Pago total de arancel (Hipótesis 2) y descuento de socio.deuda_actividad.
 -- =====================================================
+DROP PROCEDURE IF EXISTS sp_registrar_pago_arancel //
 CREATE PROCEDURE sp_registrar_pago_arancel(
     IN p_nro_base INT,
     IN p_nro_orden INT,

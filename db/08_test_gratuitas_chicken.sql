@@ -21,7 +21,7 @@ DELETE FROM agrupa WHERE (id_actividad, tipo_categoria) IN
     ((3, 'Mayores'), (3, 'Vitalicios'), (6, 'Infantiles'), (6, 'Mayores'));
 
 -- ---------- categoria sin ninguna actividad gratuita (caso borde) ----------
---INSERT INTO categoria (tipo_categoria, descuento) VALUES ('Honorarios', 0.00);
+-- INSERT INTO categoria (tipo_categoria, descuento) VALUES ('Honorarios', 0.00);
 
 -- ---------- grupo y socios ----------
 INSERT INTO grupo_familiar (nro_base, num_telefono, domicilio, deuda_total) VALUES
@@ -44,7 +44,7 @@ VALUES
     (950, 11, 'S11 Vitalicios - solo gratuita 5',            NULL, '1951-01-01', 0, FALSE, 'Vitalicios'),
     (950, 12, 'S12 Vitalicios - solo gratuita 6',            NULL, '1952-01-01', 0, FALSE, 'Vitalicios'),
     (950, 13, 'S13 Vitalicios - 5 y 6 en 2025 + arancelada', NULL, '1953-01-01', 0, FALSE, 'Vitalicios');
-    --(950, 14, 'S14 Honorarios - categoria sin gratuitas',    NULL, '1960-01-01', 0, FALSE, 'Honorarios');
+    -- (950, 14, 'S14 Honorarios - categoria sin gratuitas',    NULL, '1960-01-01', 0, FALSE, 'Honorarios');
 
 INSERT INTO socio_titular (nro_base, nro_orden, nro_celular) VALUES (950, 0, '223-155-950');
 

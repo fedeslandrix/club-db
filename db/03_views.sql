@@ -60,9 +60,9 @@ SELECT g.nro_base,
        SUM(s.deuda_actividad)       AS total_deuda_actividad_informativa
 
 FROM grupo_familiar g,
-     socio s,--Para contar los socios en el grupo familiar
-     socio t, --Para obtener los socios titulares
-     socio_titular st -- Para obtener los deatos de los titulares
+     socio s,          -- Para contar los socios en el grupo familiar
+     socio t,          -- Para obtener los socios titulares
+     socio_titular st  -- Para obtener los datos de los titulares
 
 WHERE s.nro_base = g.nro_base
   AND t.nro_base = g.nro_base

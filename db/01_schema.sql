@@ -159,33 +159,6 @@ CREATE TABLE actividad_no_arancelada (
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- PUEDE DICTAR (habilitación profesional-actividad)  -- necesaria para la RA 8
--- Si en el modelo de la cátedra se llama distinto, renombrar acá y en el trigger.
-CREATE TABLE puede_dictar (
-    id_profesional  INT NOT NULL,
-    id_actividad    INT NOT NULL,
-    CONSTRAINT pk_puede_dictar PRIMARY KEY (id_profesional, id_actividad),
-    CONSTRAINT fk_puede_dictar_prof FOREIGN KEY (id_profesional)
-        REFERENCES profesional (id_profesional)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_puede_dictar_act FOREIGN KEY (id_actividad)
-        REFERENCES actividad (id_actividad)
-        ON UPDATE CASCADE ON DELETE CASCADE
-) ENGINE=InnoDB;
-
--- PERMITE (actividades que se pueden desarrollar en cada área)  -- necesaria para la RA 8
-CREATE TABLE permite (
-    id_area         INT NOT NULL,
-    id_actividad    INT NOT NULL,
-    CONSTRAINT pk_permite PRIMARY KEY (id_area, id_actividad),
-    CONSTRAINT fk_permite_area FOREIGN KEY (id_area)
-        REFERENCES area (id_area)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_permite_act FOREIGN KEY (id_actividad)
-        REFERENCES actividad (id_actividad)
-        ON UPDATE CASCADE ON DELETE CASCADE
-) ENGINE=InnoDB;
-
 -- TRABAJA EN (cronograma)
 CREATE TABLE trabaja_en (
     id_profesional  INT            NOT NULL,
@@ -194,7 +167,7 @@ CREATE TABLE trabaja_en (
     dias            VARCHAR(50)    NOT NULL,
     horario         VARCHAR(30)    NOT NULL,
     periodo         VARCHAR(50)    NOT NULL,
-    CONSTRAINT pk_trabaja_en PRIMARY KEY (id_profesional, id_actividad, id_area, dias, horario),
+    CONSTRAINT pk_trabaja_en PRIMARY KEY (id_profesional, id_actividad, id_area, dias, horario, periodo),
     CONSTRAINT fk_trabaja_profesional FOREIGN KEY (id_profesional)
         REFERENCES profesional (id_profesional)
         ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -229,7 +202,7 @@ CREATE TABLE abona (
     nro_orden       INT   NOT NULL,
     nro_base        INT   NOT NULL,
     fecha           DATE  NOT NULL,
-    CONSTRAINT pk_abona PRIMARY KEY (id_actividad, nro_orden, nro_base),
+    CONSTRAINT pk_abona PRIMARY KEY (id_actividad, nro_orden, nro_base, fecha),
     CONSTRAINT fk_abona_arancelada FOREIGN KEY (id_actividad)
         REFERENCES actividad_arancelada (id_actividad)
         ON UPDATE CASCADE ON DELETE RESTRICT,
