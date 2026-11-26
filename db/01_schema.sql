@@ -195,8 +195,8 @@ CREATE TABLE se_inscribe_en (
 ) ENGINE=InnoDB;
 
 -- ABONA
--- RA 5: solo paga quien está inscripto -> FK compuesta a SE INSCRIBE EN.
---       Además id_actividad sigue referenciando a ACTIVIDAD ARANCELADA.
+-- FKs alineadas al DER/MR: referencia a ACTIVIDAD ARANCELADA y a SOCIO.
+-- RA 5 (solo paga quien está inscripto) se controla en trg_abona_bi / trg_abona_bu.
 CREATE TABLE abona (
     id_actividad    INT   NOT NULL,
     nro_orden       INT   NOT NULL,
@@ -206,8 +206,8 @@ CREATE TABLE abona (
     CONSTRAINT fk_abona_arancelada FOREIGN KEY (id_actividad)
         REFERENCES actividad_arancelada (id_actividad)
         ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_abona_inscripcion FOREIGN KEY (nro_base, nro_orden, id_actividad)
-        REFERENCES se_inscribe_en (nro_base, nro_orden, id_actividad)
+    CONSTRAINT fk_abona_socio FOREIGN KEY (nro_base, nro_orden)
+        REFERENCES socio (nro_base, nro_orden)
         ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 

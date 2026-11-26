@@ -133,6 +133,40 @@ BEGIN
     END IF;
 END$$
 
+-- RA 5: impide registrar un pago de arancel si el socio no está inscripto en la actividad
+DROP TRIGGER IF EXISTS trg_abona_bi$$
+CREATE TRIGGER trg_abona_bi
+BEFORE INSERT ON abona
+FOR EACH ROW
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM se_inscribe_en
+                    WHERE nro_base     = NEW.nro_base
+                      AND nro_orden    = NEW.nro_orden
+                      AND id_actividad = NEW.id_actividad) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'RA: el socio debe estar inscripto en la actividad para poder abonarla';
+    END IF;
+END$$
+
+-- RA 5: mantiene la exigencia de inscripción si se modifica socio o actividad en un pago
+DROP TRIGGER IF EXISTS trg_abona_bu$$
+CREATE TRIGGER trg_abona_bu
+BEFORE UPDATE ON abona
+FOR EACH ROW
+BEGIN
+    IF NEW.nro_base <> OLD.nro_base
+       OR NEW.nro_orden <> OLD.nro_orden
+       OR NEW.id_actividad <> OLD.id_actividad THEN
+        IF NOT EXISTS (SELECT 1 FROM se_inscribe_en
+                        WHERE nro_base     = NEW.nro_base
+                          AND nro_orden    = NEW.nro_orden
+                          AND id_actividad = NEW.id_actividad) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'RA: el socio debe estar inscripto en la actividad para poder abonarla';
+        END IF;
+    END IF;
+END$$
+
 -- Garantiza disjunción con NO ARANCELADA y coherencia con ACTIVIDAD.tipo = 'ARANCELADA'
 DROP TRIGGER IF EXISTS trg_arancelada_bi$$
 CREATE TRIGGER trg_arancelada_bi
